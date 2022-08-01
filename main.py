@@ -18,7 +18,7 @@ config = {
     "use_wandb": False,
     "with_memory": False,
     "with_rewards_mem": True,
-    "total_timesteps": 10_000,
+    "total_timesteps": 100_000,
     "env": "LunarLander-v2",
     # "env": "Humanoid-v3",
     # 'env' : 'HumanoidStandup-v2',
