@@ -1,5 +1,6 @@
 stable-baselines3
 box2d
 pyglet
+wandb
 imageio-ffmpeg
 tensorboard

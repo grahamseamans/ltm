@@ -9,7 +9,7 @@ from ppo_mem import PPOMemory, ActorCriticMemoryPolicy
 
 def make_env(env_id):
     env = gym.make(env_id)
-    env = gym.wrappers.Monitor(env, f"videos", force=True)  # record videos
+    # env = gym.wrappers.Monitor(env, f"videos", force=True)  # record videos
     env = gym.wrappers.RecordEpisodeStatistics(env)  # record stats such as returns
     return env
 
@@ -39,7 +39,10 @@ vec_env = DummyVecEnv([partial(make_env, env_id=config["env"])])
 
 if config["with_memory"]:
     model = PPOMemory(
-        ActorCriticMemoryPolicy, vec_env, verbose=1, tensorboard_log=f"runs/ppo"
+        ActorCriticMemoryPolicy,
+        vec_env,
+        verbose=1,
+        tensorboard_log=f"runs/ppo",
     )
 else:
     model = PPO(
