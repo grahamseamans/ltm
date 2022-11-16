@@ -4,7 +4,7 @@ import gym
 import wandb
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
-from ppo_mem import PPOMemory, ActorCriticMemoryPolicy
+from ppo_mem_sb import PPOMemory, ActorCriticMemoryPolicy
 
 
 def make_env(env_id):

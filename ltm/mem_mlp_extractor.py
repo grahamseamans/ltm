@@ -7,7 +7,7 @@ import gym
 import torch as th
 import torch.nn as nn
 
-from search_attn import MultiHeadAttentionSearch
+from ltm.search_attn import MultiHeadAttentionSearch
 from memories import Memories
 
 
