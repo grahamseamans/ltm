@@ -36,7 +36,7 @@ class MemoryMlpExtractor(MlpExtractor):
             obs_len=feature_dim, rew_len=rew_len, act_len=act_len, mem_thresh=1_024
         )
 
-        mem = self.memory.memories
+        mem = self.memory._memories
         mem_len = mem.shape[1]
 
         self.search_attn = MultiHeadAttentionSearch(
@@ -63,7 +63,7 @@ class MemoryMlpExtractor(MlpExtractor):
         feat_len = 10  # output of both attns concatenated...
 
     def mem_stuff(self, obs):
-        mem = self.memory.memories
+        mem = self.memory._memories
 
         batch_size, obs_len = obs.shape
         num_mems, mem_dim = mem.shape

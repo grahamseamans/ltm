@@ -8,8 +8,10 @@ from tianshou.data import Batch, ReplayBuffer, to_torch_as
 from tianshou.policy import A2CPolicy
 from tianshou.utils.net.common import ActorCritic
 
+from memories import Memories
 
-class PPOPolicy(A2CPolicy):
+
+class PPOPolicyMem(A2CPolicy):
     r"""Implementation of Proximal Policy Optimization. arXiv:1707.06347.
     :param torch.nn.Module actor: the actor network following the rules in
         :class:`~tianshou.policy.BasePolicy`. (s -> logits)
@@ -61,6 +63,7 @@ class PPOPolicy(A2CPolicy):
         self,
         actor: torch.nn.Module,
         critic: torch.nn.Module,
+        mem: Memories,
         optim: torch.optim.Optimizer,
         dist_fn: Type[torch.distributions.Distribution],
         eps_clip: float = 0.2,
@@ -84,6 +87,7 @@ class PPOPolicy(A2CPolicy):
         self._norm_adv = advantage_normalization
         self._recompute_adv = recompute_advantage
         self._actor_critic: ActorCritic
+        self._mem = mem
 
     def process_fn(
         self, batch: Batch, buffer: ReplayBuffer, indices: np.ndarray
@@ -104,6 +108,9 @@ class PPOPolicy(A2CPolicy):
         self, batch: Batch, batch_size: int, repeat: int, **kwargs: Any
     ) -> Dict[str, List[float]]:
         losses, clip_losses, vf_losses, ent_losses = [], [], [], []
+        # from batch sample however many we want to add
+        # call dream
+        self._mem.add(batch)
         for step in range(repeat):
             if self._recompute_adv and step > 0:
                 batch = self._compute_returns(batch, self._buffer, self._indices)

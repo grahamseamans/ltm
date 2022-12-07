@@ -3,6 +3,7 @@ videos/
 wandb/
 runs/
 
+ltm_env/
 
 
 # Byte-compiled / optimized / DLL files
