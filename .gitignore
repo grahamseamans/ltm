@@ -4,6 +4,8 @@ wandb/
 runs/
 
 ltm_env/
+.vscode/
+log/
 
 
 # Byte-compiled / optimized / DLL files

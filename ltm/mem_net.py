@@ -1,4 +1,4 @@
-import torch as th
+import torch
 import torch.nn as nn
 from utils import device
 
@@ -18,8 +18,7 @@ class MemNet(nn.Module):
         # obs_len = observation_space.shape[-1]
         # rew_len = 2
         # act_len = action_space.n
-        out_len = self.embed_dim * search_heads
-        self.out_len = out_len
+        self.output_dim = self.embed_dim * search_heads
 
         self.memory = mem
         # self.memory = Memories(
@@ -53,13 +52,12 @@ class MemNet(nn.Module):
 
         # feat_len = 10  # output of both attns concatenated...
 
-    def forward(self, obs):
+    def forward(self, obs, state=None):
+        obs = torch.as_tensor(obs, device=device(), dtype=torch.float32)
         mem = self.memory.memories
-
         batch_size, obs_len = obs.shape
         num_mems, mem_dim = mem.shape
-
-        obs = th.unsqueeze(obs, dim=1)
+        obs = torch.unsqueeze(obs, dim=1)
         mem = mem.expand(batch_size, num_mems, mem_dim)
 
         search = self.search_attn(obs, mem, mem)
@@ -68,9 +66,9 @@ class MemNet(nn.Module):
         features, attn_weights = self.attn_1(search, mem, mem)
         features, attn_weights = self.attn_2(features, mem, mem)
         # print(features.shape)
-        features = th.flatten(features, start_dim=1)
+        logits = torch.flatten(features, start_dim=1)
         # print('feature.shape ', features.shape, 'out len', self.out_len)
-        return features
+        return logits, state
 
     # def forward(self, features: th.Tensor) -> Tuple[th.Tensor, th.Tensor]:
     #     features = self.mem_stuff(features)

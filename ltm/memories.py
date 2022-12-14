@@ -24,17 +24,21 @@ class Memories:
     def add(self, batch: Batch):
         mems_needed = 2
         if self.mem_empty:
-            mems_needed = self.mem_thresh - len(self.memories)
+            mems_needed = self.mem_thresh - len(self._memories)
             if len(self.memories) >= self.mem_thresh:
                 self.mem_empty = False
 
-        to_add = next(batch.split(min(len(batch), mems_needed), shuffle=True))
+        to_add = next(batch.split(mems_needed, shuffle=True))
         obs = to_add.obs
         rew = to_add.returns
         act = to_add.act
 
-        rew = rew.repeat(1, 2)
+        rew = rew.repeat(1, 2).transpose()
         rew[:, 1] = 1
+
+        obs = torch.as_tensor(obs, device=device(), dtype=torch.float32)
+        rew = torch.as_tensor(rew, device=device(), dtype=torch.float32)
+        act = torch.as_tensor(act, device=device(), dtype=torch.float32)
 
         obs = f.normalize(obs)
         rew = f.normalize(rew)

@@ -61,9 +61,9 @@ class PPOPolicyMem(A2CPolicy):
 
     def __init__(
         self,
+        mem: Memories,
         actor: torch.nn.Module,
         critic: torch.nn.Module,
-        mem: Memories,
         optim: torch.optim.Optimizer,
         dist_fn: Type[torch.distributions.Distribution],
         eps_clip: float = 0.2,
