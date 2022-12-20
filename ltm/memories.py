@@ -5,6 +5,9 @@ import math
 from utils import device
 from tianshou.data import Batch
 import einops
+import numpy as np
+import scipy
+from sklearn.preprocessing import normalize
 
 
 class Memories:
@@ -26,7 +29,7 @@ class Memories:
         mems_needed = 16
         if self.mem_empty:
             mems_needed = self.mem_thresh - len(self._memories)
-            if len(self.memories) >= self.mem_thresh:
+            if len(self._memories) + mems_needed >= self.mem_thresh:
                 self.mem_empty = False
 
         to_add = next(batch.split(mems_needed, shuffle=True))
@@ -51,35 +54,40 @@ class Memories:
         self.dream()
 
     def dream(self):
-        to_remove = len(self._memories) - self.mem_thresh
-        if to_remove <= 0:
+
+        if len(self._memories) <= self.mem_thresh:
             return
-        print(
-            f"dreaming with {len(self._memories)} memories and a threshold of {self.mem_thresh}"
-        )
-        mem_sim = torch.einsum("ij,kj->ik", self._memories, self._memories).to("cpu")
-        idxs = self.unravel_indices(
-            torch.argsort(mem_sim.flatten(), descending=True), mem_sim.shape
-        )
-        idxs = idxs[range(len(self._memories), len(idxs), 2)]
 
-        idx_idx = 0
-        idx_remove = 0
-        remove_set = set()
-        while idx_remove < to_remove:
-            a, b = idxs[idx_idx]
-            idx_idx += 1
-            if a not in remove_set and b not in remove_set:
-                remove_set.add((a if random.random() > 0.5 else b).item())
-                idx_remove += 1
+        x = self._memories.numpy()
+        i = len(x)
+        i_thresh = self.mem_thresh
 
-        keep = list(set(range(len(self._memories))) - remove_set)
-        self._memories = self._memories[keep]
+        tree = scipy.spatial.KDTree(x)
+        close_ret = tree.query(x, k=(i - i_thresh + 1))
+        close = close_ret[0]
+        idxs = close_ret[1]
 
-    def unravel_indices(self, indices, shape):
-        coord = []
-        for dim in reversed(shape):
-            coord.append(indices % dim)
-            indices = torch.div(indices, dim, rounding_mode="trunc")
-        coord = torch.stack(coord[::-1], dim=-1)
-        return coord
+        close = close[:, 1:]
+        idxs = idxs[:, 1:]
+
+        flattened = close.flatten()
+        sorted = np.argsort(flattened)
+        close_shape = close.shape
+        unraveled = np.unravel_index(sorted, close_shape)
+        unraveled_stack = np.dstack(unraveled)
+        ordered = unraveled[0]
+        pairs = ordered.reshape((len(ordered) // 2, 2))
+        idxs = pairs
+
+        remove = []
+        idx = 0
+        while len(remove) < i - i_thresh:
+            a, b = idxs[idx]
+            idx += 1
+            if a not in remove and b not in remove:
+                remove.append(a if random.random() > 0.5 else b)
+
+        keep = list(set(range(i)) - set(remove))
+        new_x = x[keep]
+
+        self._memories = torch.as_tensor(new_x, device=device(), dtype=torch.float32)
