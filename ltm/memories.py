@@ -4,6 +4,7 @@ import random
 import math
 from utils import device
 from tianshou.data import Batch
+import einops
 
 
 class Memories:
@@ -22,7 +23,7 @@ class Memories:
         return self._dummy if self.mem_empty else self._memories
 
     def add(self, batch: Batch):
-        mems_needed = 2
+        mems_needed = 16
         if self.mem_empty:
             mems_needed = self.mem_thresh - len(self._memories)
             if len(self.memories) >= self.mem_thresh:
@@ -33,7 +34,7 @@ class Memories:
         rew = to_add.returns
         act = to_add.act
 
-        rew = rew.repeat(1, 2).transpose()
+        rew = einops.repeat(rew, "m -> m k", k=2)
         rew[:, 1] = 1
 
         obs = torch.as_tensor(obs, device=device(), dtype=torch.float32)
@@ -51,7 +52,7 @@ class Memories:
 
     def dream(self):
         to_remove = len(self._memories) - self.mem_thresh
-        if to_remove < 0:
+        if to_remove <= 0:
             return
         print(
             f"dreaming with {len(self._memories)} memories and a threshold of {self.mem_thresh}"
