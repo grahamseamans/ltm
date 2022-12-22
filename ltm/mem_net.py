@@ -26,7 +26,7 @@ class MemNet(nn.Module):
         # )
         obs_len = self.memory.obs_len
 
-        mem = self.memory._memories
+        mem = self.memory.memories
         mem_len = mem.shape[1]
 
         self.search_attn = MultiHeadAttentionSearch(
