@@ -30,7 +30,6 @@ class Memories:
         return self._dummy if self.mem_empty else self._memories
 
     def add(self, batch: Batch):
-        start_time = time.time()
         mems_needed = 16
         if self.mem_empty:
             mems_needed = self.mem_thresh - len(self._memories)
@@ -57,8 +56,6 @@ class Memories:
 
         self.dream()
         self._memories = torch.from_numpy(self._np_memories).to(device()).float()
-
-        print(f"adding and dreaming took {time.time() - start_time} seconds")
 
     def dream(self):
         mems = self._np_memories
