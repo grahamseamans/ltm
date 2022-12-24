@@ -44,8 +44,8 @@ class Memories:
         rew = einops.repeat(rew, "m -> m k", k=2)
         rew[:, 1] = 1
 
-        rew = rew.numpy()
-        act = act.numpy()
+        rew = rew.cpu().numpy()
+        act = act.cpu().numpy()
 
         obs = normalize(obs)
         rew = normalize(rew)
