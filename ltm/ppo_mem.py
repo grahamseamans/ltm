@@ -92,6 +92,10 @@ class PPOPolicyMem(A2CPolicy):
     def process_fn(
         self, batch: Batch, buffer: ReplayBuffer, indices: np.ndarray
     ) -> Batch:
+        # do the adjustment to rewards here I think...
+        """ """
+        batch = self._mem.add_boredom(batch)
+
         if self._recompute_adv:
             # buffer input `buffer` and `indices` to be used in `learn()`.
             self._buffer, self._indices = buffer, indices
@@ -111,6 +115,8 @@ class PPOPolicyMem(A2CPolicy):
         # from batch sample however many we want to add
         # call dream
         self._mem.add(batch)
+        # go through batch and adjust the reward to have a likeness added to it?
+        # maybe doing this in process_fn makes more sense?
         for step in range(repeat):
             if self._recompute_adv and step > 0:
                 batch = self._compute_returns(batch, self._buffer, self._indices)

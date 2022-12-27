@@ -37,25 +37,56 @@ class Memories:
                 self.mem_empty = False
 
         to_add = next(batch.split(mems_needed, shuffle=True))
-        obs = to_add.obs
-        rew = to_add.returns
-        act = to_add.act
-
-        rew = einops.repeat(rew, "m -> m k", k=2)
-        rew[:, 1] = 1
-
-        rew = rew.cpu().numpy()
-        act = act.cpu().numpy()
-
-        obs = normalize(obs)
-        rew = normalize(rew)
-        act = normalize(act)
-
-        new_memories = np.concatenate((obs, rew, act), axis=1)
+        to_add = self.pre_process_mem_bits(to_add, modify_data=False)
+        new_memories = np.concatenate((to_add.obs, to_add.returns, to_add.act), axis=1)
         self._np_memories = np.concatenate((self._np_memories, new_memories))
 
         self.dream()
         self._memories = torch.from_numpy(self._np_memories).to(device()).float()
+
+    def pre_process_mem_bits(self, batch: Batch, modify_data=False):
+        if not modify_data:
+            batch = Batch(batch, copy=True)
+
+        if "returns" in batch:
+            if isinstance(batch.returns, torch.Tensor):
+                batch.returns = batch.returns.cpu().numpy()
+            batch.returns = einops.repeat(batch.returns, "m -> m k", k=2)
+            batch.returns[:, 1] = 1
+            batch.returns = normalize(batch.returns)
+
+        if isinstance(batch.act, torch.Tensor):
+            batch.act = batch.act.cpu().numpy()
+
+        batch.obs = normalize(batch.obs)
+        batch.act = normalize(batch.act)
+
+        return batch
+
+    def add_boredom(self, batch: Batch):
+        if self.mem_empty:
+            return batch
+
+        mem_obs = self._np_memories[:, : self.obs_len]
+        mem_act = self._np_memories[:, -self.act_len :]
+
+        normed_batch = self.pre_process_mem_bits(batch)
+
+        self.print_stats(batch.rew, "reward")
+
+        act_penalty = np.einsum("ij,kj->i", normed_batch.act, mem_act)
+        obs_penatly = np.einsum("ij,kj->i", normed_batch.obs, mem_obs)
+
+        self.print_stats(act_penalty, "act penatly")
+        self.print_stats(obs_penatly, "obs penalty")
+
+        batch.rew -= act_penalty
+        batch.rew -= obs_penatly
+
+        return batch
+
+    def print_stats(thing: np.ndarray, name: str = None):
+        print(name, np.max(thing), np.min(thing), np.mean(thing))
 
     def dream(self):
         mems = self._np_memories
