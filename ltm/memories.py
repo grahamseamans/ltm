@@ -23,6 +23,7 @@ class Memories:
         self._np_memories = np.ones((0, total_len))
         self._memories = torch.ones(0, total_len).to(device()).float()
         self._dummy = torch.rand(self.mem_thresh, total_len).to(device()).float()
+        self._dummy.requires_grad = False
         self.mem_empty = True
 
     @property
@@ -38,11 +39,12 @@ class Memories:
 
         to_add = next(batch.split(mems_needed, shuffle=True))
         to_add = self.pre_process_mem_bits(to_add, modify_data=False)
-        new_memories = np.concatenate((to_add.obs, to_add.returns, to_add.act), axis=1)
+        new_memories = np.concatenate((to_add.obs, to_add.act, to_add.returns), axis=1)
         self._np_memories = np.concatenate((self._np_memories, new_memories))
 
         self.dream()
         self._memories = torch.from_numpy(self._np_memories).to(device()).float()
+        self._memories.requires_grad = False
 
     def pre_process_mem_bits(self, batch: Batch, modify_data=False):
         if not modify_data:
@@ -67,21 +69,15 @@ class Memories:
         if self.mem_empty:
             return batch
 
-        mem_obs = self._np_memories[:, : self.obs_len]
-        mem_act = self._np_memories[:, -self.act_len :]
+        normed = self.pre_process_mem_bits(batch)
+        new_experiences = np.concatenate((normed.obs, normed.act), axis=1)
+        mems = self._np_memories[:, : self.obs_len + self.act_len]
 
-        normed_batch = self.pre_process_mem_bits(batch)
+        tree = scipy.spatial.KDTree(mems)
+        query_ret = tree.query(new_experiences, k=1)
+        close = query_ret[0]
 
-        self.print_stats(batch.rew, "reward")
-
-        act_penalty = np.einsum("ij,kj->i", normed_batch.act, mem_act)
-        obs_penatly = np.einsum("ij,kj->i", normed_batch.obs, mem_obs)
-
-        self.print_stats(act_penalty, "act penatly")
-        self.print_stats(obs_penatly, "obs penalty")
-
-        batch.rew -= act_penalty
-        batch.rew -= obs_penatly
+        batch.rew -= close
 
         return batch
 

@@ -79,8 +79,8 @@ def get_args():
 
 def test_ppo(args=get_args()):
     if args.quickie is not False:
-        args.epoch = 1
-        args.step_per_epoch = 10_000
+        args.epoch = 2
+        args.step_per_epoch = 5_000
     env, train_envs, test_envs = make_mujoco_env(
         args.task, args.seed, args.training_num, args.test_num, obs_norm=True
     )
@@ -94,7 +94,7 @@ def test_ppo(args=get_args()):
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     # model
-    memory = Memories(args.state_shape, 1, args.action_shape, 100)
+    memory = Memories(args.state_shape, 1, args.action_shape, 256)
     # net_a = Net(
     #     args.state_shape,
     #     hidden_sizes=args.hidden_sizes,
