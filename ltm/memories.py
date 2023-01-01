@@ -31,7 +31,7 @@ class Memories:
         return self._dummy if self.mem_empty else self._memories
 
     def add(self, batch: Batch):
-        mems_needed = 16
+        mems_needed = 64
         if self.mem_empty:
             mems_needed = self.mem_thresh - len(self._memories)
             if len(self._memories) + mems_needed >= self.mem_thresh:
@@ -77,7 +77,7 @@ class Memories:
         query_ret = tree.query(new_experiences, k=1)
         close = query_ret[0]
 
-        batch.rew -= close
+        batch.rew *= -1 * close
 
         return batch
 

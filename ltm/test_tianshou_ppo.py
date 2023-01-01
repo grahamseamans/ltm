@@ -67,6 +67,7 @@ def get_args():
         choices=["tensorboard", "wandb"],
     )
     parser.add_argument("--wandb-project", type=str, default="mujoco.benchmark")
+    parser.add_argument("--wandb-run", type=str, default=None)
     parser.add_argument(
         "--watch",
         default=False,
@@ -94,7 +95,7 @@ def test_ppo(args=get_args()):
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     # model
-    memory = Memories(args.state_shape, 1, args.action_shape, 16)
+    memory = Memories(args.state_shape, 1, args.action_shape, 512)
     # net_a = Net(
     #     args.state_shape,
     #     hidden_sizes=args.hidden_sizes,
@@ -198,7 +199,7 @@ def test_ppo(args=get_args()):
     if args.logger == "wandb":
         logger = WandbLogger(
             save_interval=1,
-            name=log_name.replace(os.path.sep, "__"),
+            name=args.wandb_run,
             run_id=args.resume_id,
             config=args,
             project=args.wandb_project,
@@ -214,7 +215,6 @@ def test_ppo(args=get_args()):
         state = {"model": policy.state_dict(), "obs_rms": train_envs.get_obs_rms()}
         torch.save(state, os.path.join(log_path, "policy.pth"))
 
-    print("are we running yet?")
     if not args.watch:
         # trainer
         result = onpolicy_trainer(
@@ -232,7 +232,7 @@ def test_ppo(args=get_args()):
             test_in_train=False,
         )
         pprint.pprint(result)
-    print("did we finnish training?")
+
     # Let's watch its performance!
     policy.eval()
     test_envs.seed(args.seed)
