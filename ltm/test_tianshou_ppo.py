@@ -80,7 +80,7 @@ def get_args():
 def test_ppo(args=get_args()):
     if args.quickie is not False:
         args.epoch = 2
-        args.step_per_epoch = 5_000
+        args.step_per_epoch = 3_000
     env, train_envs, test_envs = make_mujoco_env(
         args.task, args.seed, args.training_num, args.test_num, obs_norm=True
     )
@@ -94,7 +94,7 @@ def test_ppo(args=get_args()):
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     # model
-    memory = Memories(args.state_shape, 1, args.action_shape, 256)
+    memory = Memories(args.state_shape, 1, args.action_shape, 16)
     # net_a = Net(
     #     args.state_shape,
     #     hidden_sizes=args.hidden_sizes,
@@ -214,6 +214,7 @@ def test_ppo(args=get_args()):
         state = {"model": policy.state_dict(), "obs_rms": train_envs.get_obs_rms()}
         torch.save(state, os.path.join(log_path, "policy.pth"))
 
+    print("are we running yet?")
     if not args.watch:
         # trainer
         result = onpolicy_trainer(
@@ -231,7 +232,7 @@ def test_ppo(args=get_args()):
             test_in_train=False,
         )
         pprint.pprint(result)
-
+    print("did we finnish training?")
     # Let's watch its performance!
     policy.eval()
     test_envs.seed(args.seed)

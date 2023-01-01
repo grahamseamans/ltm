@@ -93,11 +93,7 @@ class PPOPolicyMem(A2CPolicy):
         self, batch: Batch, buffer: ReplayBuffer, indices: np.ndarray
     ) -> Batch:
 
-        if not self.actor.training:
-            print("\n\nit's not training and not going mem stuff\n\n")
-
-        if self.actor.training:
-            batch = self._mem.add_boredom(batch)
+        batch = self._mem.add_boredom(batch)
 
         if self._recompute_adv:
             # buffer input `buffer` and `indices` to be used in `learn()`.
@@ -110,8 +106,7 @@ class PPOPolicyMem(A2CPolicy):
                 old_log_prob.append(self(minibatch).dist.log_prob(minibatch.act))
         batch.logp_old = torch.cat(old_log_prob, dim=0)
 
-        if self.actor.training:
-            self._mem.add(batch)
+        self._mem.add(batch)
 
         return batch
 
@@ -119,10 +114,6 @@ class PPOPolicyMem(A2CPolicy):
         self, batch: Batch, batch_size: int, repeat: int, **kwargs: Any
     ) -> Dict[str, List[float]]:
         losses, clip_losses, vf_losses, ent_losses = [], [], [], []
-        # from batch sample however many we want to add
-        # call dream
-        # go through batch and adjust the reward to have a likeness added to it?
-        # maybe doing this in process_fn makes more sense?
         for step in range(repeat):
             if self._recompute_adv and step > 0:
                 batch = self._compute_returns(batch, self._buffer, self._indices)
