@@ -18,11 +18,11 @@ class Memories:
         self.ret_len = 2
         self.obs_len = math.prod(obs_len)
         self.act_len = math.prod(act_len)
-        total_len = self.obs_len + self.ret_len + self.act_len
+        self.mem_len = self.obs_len + self.ret_len + self.act_len
 
-        self._np_memories = np.ones((0, total_len))
-        self._memories = torch.ones(0, total_len).to(device()).float()
-        self._dummy = torch.rand(self.mem_thresh, total_len).to(device()).float()
+        self._np_memories = np.ones((0, self.mem_len))
+        self._memories = torch.ones(0, self.mem_len).to(device()).float()
+        self._dummy = torch.rand(self.mem_thresh, self.mem_len).to(device()).float()
         self._dummy.requires_grad = False
         self.mem_empty = True
 
@@ -31,7 +31,7 @@ class Memories:
         return self._dummy if self.mem_empty else self._memories
 
     def add(self, batch: Batch):
-        mems_needed = 64
+        mems_needed = 512
         if self.mem_empty:
             mems_needed = self.mem_thresh - len(self._memories)
             if len(self._memories) + mems_needed >= self.mem_thresh:

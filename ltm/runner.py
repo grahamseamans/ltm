@@ -7,10 +7,10 @@ tasks = [
     # "HumanoidStandup-v4",
 ]
 files = [
-    # ("mem", "ltm/test_tianshou_ppo.py"),
-    ("regular", "/home/cibo/code/ltm/tianshou/examples/mujoco/mujoco_ppo.py"),
+    ("mem_new", "ltm/test_tianshou_ppo.py"),
+    # ("regular", "/home/cibo/code/ltm/tianshou/examples/mujoco/mujoco_ppo.py"),
 ]
-epochs = 3
+epochs = 15
 
 
 runs = []

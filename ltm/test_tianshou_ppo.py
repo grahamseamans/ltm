@@ -21,12 +21,12 @@ from tianshou.utils.net.common import Net
 from tianshou.utils.net.continuous import ActorProb, Critic
 
 from memories import Memories
-from mem_net import MemNet
+from nets.multi_thought import MemNet
 
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task", type=str, default="Ant-v3")
+    parser.add_argument("--task", type=str, default="Ant-v4")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--buffer-size", type=int, default=4096)
     parser.add_argument("--hidden-sizes", type=int, nargs="*", default=[64, 64])
@@ -97,7 +97,7 @@ def test_ppo(args=get_args()):
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     # model
-    memory = Memories(args.state_shape, 1, args.action_shape, 256)
+    memory = Memories(args.state_shape, 1, args.action_shape, 2048)
     # net_a = Net(
     #     args.state_shape,
     #     hidden_sizes=args.hidden_sizes,
