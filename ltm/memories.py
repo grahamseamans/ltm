@@ -15,10 +15,10 @@ class Memories:
     def __init__(self, obs_len, rew_len, act_len, mem_thresh):
         self.mem_thresh = mem_thresh
 
-        self.rew_len = 2
+        self.ret_len = 2
         self.obs_len = math.prod(obs_len)
         self.act_len = math.prod(act_len)
-        total_len = self.obs_len + self.rew_len + self.act_len
+        total_len = self.obs_len + self.ret_len + self.act_len
 
         self._np_memories = np.ones((0, total_len))
         self._memories = torch.ones(0, total_len).to(device()).float()

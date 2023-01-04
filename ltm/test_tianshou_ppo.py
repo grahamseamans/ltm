@@ -79,6 +79,8 @@ def get_args():
 
 
 def test_ppo(args=get_args()):
+    print(f"Using device {args.device}")
+
     if args.quickie is not False:
         args.epoch = 2
         args.step_per_epoch = 3_000
@@ -95,7 +97,7 @@ def test_ppo(args=get_args()):
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     # model
-    memory = Memories(args.state_shape, 1, args.action_shape, 512)
+    memory = Memories(args.state_shape, 1, args.action_shape, 256)
     # net_a = Net(
     #     args.state_shape,
     #     hidden_sizes=args.hidden_sizes,

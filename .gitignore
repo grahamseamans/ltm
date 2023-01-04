@@ -6,7 +6,7 @@ runs/
 ltm_env/
 .vscode/
 log/
-
+tianshou/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

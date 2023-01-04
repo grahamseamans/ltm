@@ -1,10 +1,7 @@
-# stable-baselines3
-# box2d
-# pyglet
-# wandb
-# imageio-ffmpeg
-# tensorboard
-
 tianshou
 envpool
 black
+einops
+scipy
+scikit-learn
+wandb

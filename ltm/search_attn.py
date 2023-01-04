@@ -23,10 +23,10 @@ class ScaledDotProductAttention(nn.Module):
 class MultiHeadAttentionSearch(nn.Module):
     def __init__(
         self,
+        num_heads,
         embedding_dim,
         q_features,
         mem_features,
-        head_num,
         bias=True,
         activation=F.relu,
     ):
@@ -40,13 +40,13 @@ class MultiHeadAttentionSearch(nn.Module):
         # if mem_features % head_num != 0:
         #     raise ValueError('`mem_features`({}) should be divisible by `head_num`({})'.format(in_features, head_num))
         self.mem_features = mem_features
-        self.head_num = head_num
+        self.num_heads = num_heads
         self.activation = activation
         self.bias = bias
         self.embedding_dim = embedding_dim
-        self.linear_q = nn.Linear(q_features, embedding_dim * head_num, bias)
-        self.linear_k = nn.Linear(mem_features, embedding_dim * head_num, bias)
-        self.linear_v = nn.Linear(mem_features, embedding_dim * head_num, bias)
+        self.linear_q = nn.Linear(q_features, embedding_dim * num_heads, bias)
+        self.linear_k = nn.Linear(mem_features, embedding_dim * num_heads, bias)
+        self.linear_v = nn.Linear(mem_features, embedding_dim * num_heads, bias)
         # self.linear_o = nn.Linear(mem_features, in_features * head_num, bias)
 
     def forward(self, q, k, v, mask=None):
@@ -76,7 +76,7 @@ class MultiHeadAttentionSearch(nn.Module):
         # print()
 
         if mask is not None:
-            mask = mask.repeat(self.head_num, 1, 1)
+            mask = mask.repeat(self.num_heads, 1, 1)
         y = ScaledDotProductAttention()(q, k, v, mask)
         # print(y.shape)
         y = self._reshape_from_batches(y)
@@ -103,24 +103,24 @@ class MultiHeadAttentionSearch(nn.Module):
 
     def _reshape_to_batches(self, x):
         batch_size, seq_len, in_feature = x.size()
-        sub_dim = in_feature // self.head_num
+        sub_dim = in_feature // self.num_heads
         return (
-            x.reshape(batch_size, seq_len, self.head_num, sub_dim)
+            x.reshape(batch_size, seq_len, self.num_heads, sub_dim)
             .permute(0, 2, 1, 3)
-            .reshape(batch_size * self.head_num, seq_len, sub_dim)
+            .reshape(batch_size * self.num_heads, seq_len, sub_dim)
         )
 
     def _reshape_from_batches(self, x):
         batch_size, seq_len, in_feature = x.size()
-        batch_size //= self.head_num
-        out_dim = in_feature * self.head_num
-        x = x.reshape(batch_size, self.head_num * seq_len, in_feature)
+        batch_size //= self.num_heads
+        out_dim = in_feature * self.num_heads
+        x = x.reshape(batch_size, self.num_heads * seq_len, in_feature)
         return x
 
     def extra_repr(self):
         return "mem_features={}, head_num={}, bias={}, activation={}".format(
             self.mem_features,
-            self.head_num,
+            self.num_heads,
             self.bias,
             self.activation,
         )
