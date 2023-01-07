@@ -21,7 +21,7 @@ from tianshou.utils.net.common import Net
 from tianshou.utils.net.continuous import ActorProb, Critic
 
 from memories import Memories
-from nets.multi_thought import MemNet
+from mem_nets import Vanilla, SingleThought, MultiThought
 
 
 def get_args():
@@ -97,14 +97,8 @@ def test_ppo(args=get_args()):
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     # model
-    memory = Memories(args.state_shape, 1, args.action_shape, 2048)
-    # net_a = Net(
-    #     args.state_shape,
-    #     hidden_sizes=args.hidden_sizes,
-    #     activation=nn.Tanh,
-    #     device=args.device,
-    # )
-    net_a = MemNet(memory)
+    memory = Memories(args.state_shape, 1, args.action_shape, 1024)
+    net_a = Vanilla(memory)
     actor = ActorProb(
         net_a,
         args.action_shape,
@@ -112,13 +106,7 @@ def test_ppo(args=get_args()):
         unbounded=True,
         device=args.device,
     ).to(args.device)
-    # net_c = Net(
-    #     args.state_shape,
-    #     hidden_sizes=args.hidden_sizes,
-    #     activation=nn.Tanh,
-    #     device=args.device,
-    # )
-    net_c = MemNet(memory)
+    net_c = Vanilla(memory)
     critic = Critic(net_c, device=args.device).to(args.device)
     torch.nn.init.constant_(actor.sigma_param, -0.5)
     for m in list(actor.modules()) + list(critic.modules()):
