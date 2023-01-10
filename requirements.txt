@@ -5,3 +5,7 @@ einops
 scipy
 scikit-learn
 wandb
+gym[classic_control]
+mujoco
+imageio
+moviepy

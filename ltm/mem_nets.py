@@ -142,11 +142,11 @@ class BaseThinker(nn.Module):
         mem = mem.expand(batch_size, num_mems, mem_dim)
 
         # topk
-        obs_mem = mem[:, :, : self.memory.obs_len]
-        sim_mems = self.topk(obs_mem, shaped_obs, self.k)
+        # obs_mem = mem[:, :, : self.memory.obs_len]
+        # sim_mems = self.topk(obs_mem, shaped_obs, self.k)
         # best = self.best_acts(sim_mems)
 
-        return shaped_obs, sim_mems
+        return obs, shaped_obs, mem
 
     def topk(self, mems, obs, k):
         obs = f.normalize(obs)
@@ -165,6 +165,69 @@ class BaseThinker(nn.Module):
             selector[i, x] = True
         best_acts = sim_act[selector, :]  # should be 10 6
         return best_acts
+
+
+class Hybrid(BaseThinker):
+    def __init__(
+        self,
+        mem: Memories,
+        num_heads: int = 4,
+        embed_len: int = 64,
+        k: int = 16,
+        output_len: int = 64,
+    ):
+        super().__init__(mem, k)
+        self.output_dim = output_len
+        self.activation = nn.Tanh()
+        self.obs_embed = nn.Linear(self.memory.obs_len, embed_len)
+        self.mem_search = nn.MultiheadAttention(
+            embed_len,
+            num_heads,
+            kdim=mem.mem_len,
+            vdim=mem.act_len,
+            batch_first=True,
+        )
+        self.instinct = nn.Sequential(
+            nn.Linear(mem.obs_len, embed_len).to(self.device),
+            nn.Tanh(),
+            nn.Linear(embed_len, embed_len).to(self.device),
+            nn.Tanh(),
+        )
+        self.decide = nn.Linear(embed_len * 2, 2)
+        self.out_embed = nn.Linear(embed_len, output_len)
+
+        self.attn_decide = nn.MultiheadAttention(
+            embed_len,
+            num_heads=4,
+            batch_first=True,
+        )
+
+        self.descision_type = False
+
+        self.to(device())
+
+    def forward(self, obs, state=None):
+        obs, shaped_obs, mems = self.preprocess(obs)
+        acts = mems[
+            :, :, self.memory.obs_len : self.memory.obs_len + self.memory.act_len
+        ]
+        q = self.activation(self.obs_embed(shaped_obs))
+        remembered = self.activation(self.mem_search(q, mems, acts)[0])
+
+        reflex = self.instinct(obs)
+
+        if self.descision_type:
+            remembered = torch.squeeze(remembered, dim=1)
+            combo = torch.cat([remembered, reflex], dim=1)
+            descision = f.softmax(self.decide(combo), dim=1)
+            out = remembered * descision[:, 0] + reflex * descision[:, 1]
+        else:
+            reflex = torch.unsqueeze(reflex, dim=1)
+            combo = torch.cat([remembered, reflex], dim=1)
+            out = torch.sum(self.attn_decide(combo, combo, combo)[0], dim=1)
+            out = self.activation(out)
+
+        return out, state
 
 
 class SingleThought(BaseThinker):

@@ -93,7 +93,7 @@ class PPOPolicyMem(A2CPolicy):
         self, batch: Batch, buffer: ReplayBuffer, indices: np.ndarray
     ) -> Batch:
 
-        # batch = self._mem.add_boredom(batch)
+        batch = self._mem.add_boredom(batch)
 
         if self._recompute_adv:
             # buffer input `buffer` and `indices` to be used in `learn()`.

@@ -3,6 +3,7 @@ import datetime
 import os
 import pprint
 
+import gym
 import numpy as np
 import torch
 from mujoco_env import make_mujoco_env
@@ -19,9 +20,10 @@ from tianshou.trainer import onpolicy_trainer
 from tianshou.utils import TensorboardLogger, WandbLogger
 from tianshou.utils.net.common import Net
 from tianshou.utils.net.continuous import ActorProb, Critic
+from tianshou.env import SubprocVectorEnv, ShmemVectorEnv, VectorEnvNormObs
 
 from memories import Memories
-from mem_nets import Vanilla, SingleThought, MultiThought
+from mem_nets import Vanilla, SingleThought, MultiThought, Hybrid
 
 
 def get_args():
@@ -30,6 +32,7 @@ def get_args():
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--buffer-size", type=int, default=4096)
     parser.add_argument("--hidden-sizes", type=int, nargs="*", default=[64, 64])
+    parser.add_argument("--mem_len", type=int, default=1024)
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--gamma", type=float, default=0.99)
     parser.add_argument("--epoch", type=int, default=100)
@@ -38,12 +41,13 @@ def get_args():
     parser.add_argument("--repeat-per-collect", type=int, default=10)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--training-num", type=int, default=64)
-    parser.add_argument("--test-num", type=int, default=10)
+    parser.add_argument("--test-num", type=int, default=4)
     # ppo special
     parser.add_argument("--rew-norm", type=int, default=True)
     # In theory, `vf-coef` will not make any difference if using Adam optimizer.
     parser.add_argument("--vf-coef", type=float, default=0.25)
     parser.add_argument("--ent-coef", type=float, default=0.0)
+    parser.add_argument("--lazy-coef", type=float, default=0.0)
     parser.add_argument("--gae-lambda", type=float, default=0.95)
     parser.add_argument("--bound-action-method", type=str, default="clip")
     parser.add_argument("--lr-decay", type=int, default=True)
@@ -54,7 +58,7 @@ def get_args():
     parser.add_argument("--norm-adv", type=int, default=0)
     parser.add_argument("--recompute-adv", type=int, default=1)
     parser.add_argument("--logdir", type=str, default="log")
-    parser.add_argument("--render", type=float, default=0.0)
+    parser.add_argument("--render", type=float, default=0)
     parser.add_argument(
         "--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu"
     )
@@ -97,8 +101,8 @@ def test_ppo(args=get_args()):
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     # model
-    memory = Memories(args.state_shape, 1, args.action_shape, 1024)
-    net_a = Vanilla(memory)
+    memory = Memories(args.state_shape, 1, args.action_shape, args.mem_len)
+    net_a = Hybrid(memory)
     actor = ActorProb(
         net_a,
         args.action_shape,
@@ -106,7 +110,7 @@ def test_ppo(args=get_args()):
         unbounded=True,
         device=args.device,
     ).to(args.device)
-    net_c = Vanilla(memory)
+    net_c = Hybrid(memory)
     critic = Critic(net_c, device=args.device).to(args.device)
     torch.nn.init.constant_(actor.sigma_param, -0.5)
     for m in list(actor.modules()) + list(critic.modules()):
@@ -163,22 +167,6 @@ def test_ppo(args=get_args()):
         recompute_advantage=args.recompute_adv,
     )
 
-    # load a previous policy
-    if args.resume_path:
-        ckpt = torch.load(args.resume_path, map_location=args.device)
-        policy.load_state_dict(ckpt["model"])
-        train_envs.set_obs_rms(ckpt["obs_rms"])
-        test_envs.set_obs_rms(ckpt["obs_rms"])
-        print("Loaded agent from: ", args.resume_path)
-
-    # collector
-    if args.training_num > 1:
-        buffer = VectorReplayBuffer(args.buffer_size, len(train_envs))
-    else:
-        buffer = ReplayBuffer(args.buffer_size)
-    train_collector = Collector(policy, train_envs, buffer, exploration_noise=True)
-    test_collector = Collector(policy, test_envs)
-
     # log
     now = datetime.datetime.now().strftime("%y%m%d-%H%M%S")
     args.algo_name = "ppo"
@@ -201,8 +189,54 @@ def test_ppo(args=get_args()):
     else:  # wandb
         logger.load(writer)
 
+        train_envs = ShmemVectorEnv(
+            [
+                lambda: gym.make(args.task, ctrl_cost_weight=args.lazy_coef)
+                for _ in range(args.training_num)
+            ]
+        )
+
+        # def trigger(x):
+        #     return x % args.test_num == 0
+
+        test_envs = SubprocVectorEnv(
+            [
+                lambda: gym.wrappers.RecordVideo(
+                    gym.make(
+                        args.task,
+                        ctrl_cost_weight=args.lazy_coef,
+                        render_mode="rgb_array",
+                    ),
+                    video_folder=f"videos/{logger.wandb_run.id}",
+                    episode_trigger=lambda x: x % args.test_num == 0,
+                )
+            ]
+        )
+
+        train_envs = VectorEnvNormObs(train_envs)
+        test_envs = VectorEnvNormObs(test_envs, update_obs_rms=False)
+        test_envs.set_obs_rms(train_envs.get_obs_rms())
+        train_envs.seed(args.seed)
+        test_envs.seed(args.seed)
+
+    # load a previous policy
+    if args.resume_path:
+        ckpt = torch.load(args.resume_path, map_location=args.device)
+        policy.load_state_dict(ckpt["model"])
+        train_envs.set_obs_rms(ckpt["obs_rms"])
+        test_envs.set_obs_rms(ckpt["obs_rms"])
+        print("Loaded agent from: ", args.resume_path)
+
+    # collector
+    if args.training_num > 1:
+        buffer = VectorReplayBuffer(args.buffer_size, len(train_envs))
+    else:
+        buffer = ReplayBuffer(args.buffer_size)
+    train_collector = Collector(policy, train_envs, buffer, exploration_noise=False)
+    test_collector = Collector(policy, test_envs)
+
     def save_best_fn(policy):
-        state = {"model": policy.state_dict(), "obs_rms": train_envs.get_obs_rms()}
+        state = {"model": policy.state_dict()}  # , "obs_rms": train_envs.get_obs_rms()}
         torch.save(state, os.path.join(log_path, "policy.pth"))
 
     if not args.watch:
@@ -224,11 +258,32 @@ def test_ppo(args=get_args()):
         pprint.pprint(result)
 
     # Let's watch its performance!
-    policy.eval()
-    test_envs.seed(args.seed)
-    test_collector.reset()
-    result = test_collector.collect(n_episode=args.test_num, render=args.render)
-    print(f'Final reward: {result["rews"].mean()}, length: {result["lens"].mean()}')
+    # policy.eval()
+    # test_envs.seed(args.seed)
+    # test_collector.reset()
+    # result = test_collector.collect(n_episode=args.test_num, render=args.render)
+    # print(f'Final reward: {result["rews"].mean()}, length: {result["lens"].mean()}')
+
+    def watch():
+        policy.eval()
+        rec_env = SubprocVectorEnv(
+            [
+                lambda: gym.wrappers.RecordVideo(
+                    gym.make(args.task, render_mode="rgb_array"),
+                    video_folder=f"videos/{logger.wandb_run.id}",
+                    episode_trigger=lambda x: True,
+                )
+            ]
+        )
+        rec_env.seed(args.seed)
+        collector = Collector(policy, rec_env, exploration_noise=True)
+        collector.collect(n_episode=1)
+        collector.collect(n_episode=1)
+        collector.collect(n_episode=1)
+        collector.collect(n_episode=1)
+
+    if args.watch:
+        watch()
 
 
 if __name__ == "__main__":

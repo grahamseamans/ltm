@@ -7,7 +7,7 @@ from tianshou.data import Batch
 import einops
 import numpy as np
 import scipy
-from sklearn.preprocessing import normalize
+from sklearn.preprocessing import normalize, MinMaxScaler
 import time
 
 
@@ -25,17 +25,28 @@ class Memories:
         self._dummy = torch.rand(self.mem_thresh, self.mem_len).to(device()).float()
         self._dummy.requires_grad = False
         self.mem_empty = True
+        self.time_table = None
+        self.time_step = 0
 
     @property
     def memories(self):
         return self._dummy if self.mem_empty else self._memories
 
     def add(self, batch: Batch):
-        mems_needed = 512
+        self.time_step += 1
+        mems_needed = self.mem_thresh // 4
         if self.mem_empty:
             mems_needed = self.mem_thresh - len(self._memories)
             if len(self._memories) + mems_needed >= self.mem_thresh:
                 self.mem_empty = False
+
+        if not isinstance(self.time_table, np.ndarray):
+            self.time_table = np.ones(mems_needed)
+            self.time_table[:] = self.time_step
+        else:
+            new_times = np.ones(mems_needed)
+            new_times[:] = self.time_step
+            self.time_table = np.concatenate((self.time_table, new_times))
 
         to_add = next(batch.split(mems_needed, shuffle=True))
         to_add = self.pre_process_mem_bits(to_add, modify_data=False)
@@ -45,6 +56,14 @@ class Memories:
         self.dream()
         self._memories = torch.from_numpy(self._np_memories).to(device()).float()
         self._memories.requires_grad = False
+        newest_mem = np.max(self.time_table)
+        oldtest_mem = np.min(self.time_table)
+        avg_mem_age = np.mean(self.time_table)
+        print(
+            f"current age: {self.time_step}, avg_mem_age: {avg_mem_age} newest_mem: {newest_mem} oldest_mem: {oldtest_mem}"
+        )
+        unique, counts = np.unique(self.time_table, return_counts=True)
+        print(dict(zip(unique, counts)))
 
     def pre_process_mem_bits(self, batch: Batch, modify_data=False):
         if not modify_data:
@@ -69,15 +88,30 @@ class Memories:
         if self.mem_empty:
             return batch
 
+        # get the bits
         normed = self.pre_process_mem_bits(batch)
         new_experiences = np.concatenate((normed.obs, normed.act), axis=1)
         mems = self._np_memories[:, : self.obs_len + self.act_len]
 
+        # normalize for len 1 vects
+        mems = normalize(mems)
+        new_experiences = normalize(new_experiences)
+
+        # get tree
         tree = scipy.spatial.KDTree(mems)
+
+        # boredom
         query_ret = tree.query(new_experiences, k=1)
         close = query_ret[0]
+        close = np.clip(close, 0.01, 0.99)
+        batch.rew *= np.abs(close - 1)
 
-        batch.rew *= -1 * close
+        # nostalgia
+        query_ret = tree.query(new_experiences, k=10)
+        idxs = query_ret[1]
+        for i, idx in enumerate(idxs):
+            nostalgia = np.abs(np.mean((self.time_table[idx] / self.time_step)) - 1)
+            batch.rew[i] += nostalgia
 
         return batch
 
@@ -90,10 +124,10 @@ class Memories:
             return
         num_input_mems = len(mems)
         i_thresh = self.mem_thresh
+        mems_no_ret = mems[:, : self.obs_len + self.act_len]
 
-        tree = scipy.spatial.KDTree(mems)
-        query_ret = tree.query(mems, k=(num_input_mems - i_thresh + 1))
-        close = query_ret[0]
+        tree = scipy.spatial.KDTree(mems_no_ret)
+        close = tree.query(mems_no_ret, k=(num_input_mems - i_thresh + 1))[0]
         close = close[:, 1:]
 
         sorted = np.argsort(close.flatten())
@@ -106,8 +140,9 @@ class Memories:
             a, b = pairs[idx]
             idx += 1
             if a not in remove and b not in remove:
-                remove.append(a if random.random() > 0.5 else b)
+                remove.append(a if self.time_table[a] < self.time_table[b] else b)
 
         keep = list(set(range(num_input_mems)) - set(remove))
 
         self._np_memories = mems[keep]
+        self.time_table = self.time_table[keep]
