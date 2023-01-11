@@ -93,7 +93,21 @@ class PPOPolicyMem(A2CPolicy):
         self, batch: Batch, buffer: ReplayBuffer, indices: np.ndarray
     ) -> Batch:
 
-        batch = self._mem.add_boredom(batch)
+        # done = batch.done
+        # terminated = batch.terminated
+        # truncated = batch.truncated
+        # print(len(done), len(terminated), len(truncated))
+        # print(any(done), any(terminated), any(truncated))
+        # assert len(done) == len(terminated)
+        # idxs = np.array(range(len(done)))
+        # done_idxs = idxs[done]
+        # terminated_idxs = idxs[terminated]
+        # print(done_idxs)
+        # print(terminated_idxs)
+        # assert all(done_idxs == terminated_idxs)
+        # danger_obs = batch.obs[batch.terminated]
+
+        # batch = self._mem.add_boredom(batch)
 
         if self._recompute_adv:
             # buffer input `buffer` and `indices` to be used in `learn()`.
