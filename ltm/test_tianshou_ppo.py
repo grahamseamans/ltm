@@ -23,7 +23,7 @@ from tianshou.utils.net.continuous import ActorProb, Critic
 from tianshou.env import SubprocVectorEnv, ShmemVectorEnv, VectorEnvNormObs
 
 from memories import Memories, DangerMemories
-from mem_nets import Vanilla, SingleThought, MultiThought, Hybrid
+from mem_nets import Vanilla, SingleThought, MultiThought, Hybrid, Danger
 
 
 def get_args():
@@ -102,7 +102,7 @@ def test_ppo(args=get_args()):
     torch.manual_seed(args.seed)
     # model
     memory = DangerMemories(args.mem_len)
-    net_a = Vanilla(memory)
+    net_a = Danger(np.prod(args.state_shape), memory)
     actor = ActorProb(
         net_a,
         args.action_shape,
@@ -110,7 +110,7 @@ def test_ppo(args=get_args()):
         unbounded=True,
         device=args.device,
     ).to(args.device)
-    net_c = Vanilla(memory)
+    net_c = Danger(np.prod(args.state_shape), memory)
     critic = Critic(net_c, device=args.device).to(args.device)
     torch.nn.init.constant_(actor.sigma_param, -0.5)
     for m in list(actor.modules()) + list(critic.modules()):

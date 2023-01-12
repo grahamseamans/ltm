@@ -14,8 +14,10 @@ import time
 class DangerMemories:
     def __init__(self, mem_thresh):
         self.mem_thresh = mem_thresh
-        self.danger_table = None
         self.device = device()
+        self.cos = torch.nn.CosineSimilarity(dim=1)
+        self.danger_table = None
+        self._torch_danger_table = None
 
     def add(self, batch: Batch):
         danger_obs = batch.obs[batch.terminated]
@@ -29,6 +31,26 @@ class DangerMemories:
             torch.from_numpy(self.danger_table).to(self.device).float()
         )
         self._torch_danger_table.requires_grad = False
+
+    def danger_bit(self, obs):
+        if not torch.is_tensor(self._torch_danger_table):
+            return torch.rand((len(obs)), device=self.device)
+
+        mem = self._torch_danger_table
+        batch_size, obs_len = obs.shape
+        num_mems, mem_dim = mem.shape
+        shaped_obs = torch.unsqueeze(obs, dim=1)
+        mem = mem.expand(batch_size, num_mems, mem_dim)
+
+        thang = mem - shaped_obs  # 64 13 27
+        dist = torch.linalg.norm(mem - shaped_obs, dim=2)  # 64 13
+        idxs_presqueeze = dist.topk(1, largest=False, dim=1).indices
+        idxs = torch.squeeze(idxs_presqueeze, dim=1)
+        closest = torch.ones_like(obs)
+        for i, idx in enumerate(idxs):
+            closest[i, :] = self._torch_danger_table[idx]
+        danger_bits = self.cos(closest, obs)
+        return danger_bits
 
     def dream(self):
         mems = self.danger_table

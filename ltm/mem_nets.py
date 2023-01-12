@@ -92,6 +92,35 @@ class Thinker(nn.Module):
         return x
 
 
+class Danger(nn.Module):
+    def __init__(
+        self,
+        obs_len: int,
+        mem: Memories = None,
+        embed_len: int = 64,
+        output_len: int = 64,
+    ):
+        super().__init__()
+        self.device = device()
+        self.mem = mem
+        self.output_dim = output_len
+        self.net = nn.Sequential(
+            nn.Linear(obs_len + 1, embed_len),
+            nn.Tanh(),
+            nn.Linear(embed_len, output_len),
+            nn.Tanh(),
+        )
+        self.to(self.device)
+
+    def forward(self, obs, state=None):
+        obs = torch.as_tensor(obs, device=self.device, dtype=torch.float32)
+        danger_bit = self.mem.danger_bit(obs)
+        danger_bit = torch.unsqueeze(danger_bit, dim=1)
+        obs = torch.concatenate([obs, danger_bit], dim=1)
+        logits = self.net(obs)
+        return logits, state
+
+
 class Vanilla(nn.Module):
     def __init__(
         self,

@@ -111,5 +111,5 @@ epochs = 40
 
 runs = []
 for task in tasks:
-    x = f"python ltm/test_tianshou_ppo.py --task={task} --logger=wandb --wandb-project=ltm --wandb-run=walker_Hybrid_boredom_nostalgiaV2_dream_!ret --epoch={epochs}"
+    x = f"python ltm/test_tianshou_ppo.py --task={task} --logger=wandb --wandb-project=ltm --wandb-run=walker_danger_bit --epoch={epochs}"
     subprocess.run(x, shell=True)
